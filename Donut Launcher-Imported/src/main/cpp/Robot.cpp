@@ -161,34 +161,38 @@ void Robot::AutonomousPeriodic() {
       case 3:
       
       if(DistanceDrive(-.2,30,true) == DONE){
+        printf("Case 3: Done driving ")
         drive.TankDrive(0,0,true);
         if(noteCheck.Get()){
-        pickup.Set(0);
-        transporter1.Set(0);
-        transporter2.Set(0);
-        bar4.Set(bar4.kReverse);
-        sdfr = false;
-        autoStage = 5;
-        AutoTimer.Reset();
+          pickup.Set(0);
+          transporter1.Set(0);
+          transporter2.Set(0);
+          bar4.Set(bar4.kReverse);
+          sdfr = false;
+          autoStage = 5;
+          printf("moving to stage 5, encoders: (%f, %f)", lDistance, rDistance);
+          AutoTimer.Reset();
         }
       }
-      else{
-      if(lDistance <= -10){
+      else if(lDistance <= -10){
         pickup.Set(.7);
         transporter1.Set(.5);
         transporter2.Set(.3);
       }
-      }
+      printf("\n");
       break;
       
       //Drive Back
       case 5:
       if((double)AutoTimer.Get() >= 3){
-      if(DistanceDrive(-.2, 30, true) == DONE){
-      drive.TankDrive(0,0,true);
-      autoStage = 6;
-      sdfr = false;
-      }
+        printf(".");
+        if(DistanceDrive(-.2, 30, true) == DONE){
+          printf("\nStage 5 driving complete (%f, %f) after %f seconds.\n", lDistance, rDistance, (float)AutoTimer.Get());
+          drive.TankDrive(0,0,true);
+          autoStage = 6;
+          printf("Moving to stage 6\n");
+          sdfr = false;
+        }
       }
       break;
 
@@ -490,62 +494,42 @@ void Robot::Lock(){
 
 int Robot::DistanceDrive (float speed, float distance, bool brake)
 {
-  FirstCallFlag = true;
-   static float autoStartSpeed;
-   static double speedUpDistance, slowDownDistance;
+  static bool FirstCallFlag = true;
+  static float autoStartSpeed;
+  static double speedUpDistance, slowDownDistance;
   double difference = (-1 * rDistance) - (lDistance);
-   if (FirstCallFlag == true) {
+  if (FirstCallFlag) {
+    printf("DD First Call: ");
+    if(!sdfr){
+      printf("Reset encoders! ");
+      lDriveEncoder.SetPosition(0);
+      rDriveEncoder.SetPosition(0);
+      lDistance = 0;
+      rDistance = 0;
+      sdfr = true;
+      }
+      int direction;
+      //Changing Direction based off of distance float
+      if(speed < 0){
+      direction = -1;
+      }  
+      else{
+      direction = 1;
+      }
 
-  //   // Setup distance drive on first call
-  //   // Set initial values for static variables
-  //   brakingFlag = false;
-  //   FirstCallFlag = false;
-  //   if (speed < 0) {
-  //     direction = -1;
-  //   } else {
-  //     direction = 1;
-  //   }
-  //   autoStartSpeed = direction * AUTOSTARTSPEED;
-  //   if (distance < (DRIVERAMPUPDISTANCE * 3)) {
-	//     speedUpDistance = distance / 3;
-	//     slowDownDistance = speedUpDistance;
-  //   } else {
-	//     speedUpDistance = DRIVERAMPUPDISTANCE;
-  //    	slowDownDistance = distance - DRIVERAMPUPDISTANCE;
-  //   }
-	//   frc::SmartDashboard::PutNumber(  "DistanceDrive Distance", distance);
-  // 	lastDistance = 0;
-  //   sameCounter = 0;
-  //   lDriveEncoder.SetPosition(0);
-  // }
-  if(!sdfr){
-    lDriveEncoder.SetPosition(0);
-    rDriveEncoder.SetPosition(0);
-    lDistance = 0;
-    rDistance = 0;
-    sdfr = true;
-  }
-  bool direction;
-  //Changing Direction based off of distance float
-  if(speed < 0){
-    direction = -1;
-  }  
-  else{
-    direction = 1;
-  }
-  
-  //adding direction to start speed
- autoStartSpeed = AUTOSTARTSPEED * direction;
+      //adding direction to start speed
+      autoStartSpeed = AUTOSTARTSPEED * direction;
 
-//setting the ramp up and down parameters
-  if (distance < (DRIVERAMPUPDISTANCE * 3)) {
-	    speedUpDistance = distance / 3;
-	    slowDownDistance = speedUpDistance;
-    } else {
-	    speedUpDistance = DRIVERAMPUPDISTANCE;
-     	slowDownDistance = distance - DRIVERAMPUPDISTANCE;
-    }
-    FirstCallFlag = false;
+      //setting the ramp up and down parameters
+      if (distance < (DRIVERAMPUPDISTANCE * 3)) {
+        speedUpDistance = distance / 3;
+        slowDownDistance = speedUpDistance;
+      } else {
+        speedUpDistance = DRIVERAMPUPDISTANCE;
+        slowDownDistance = distance - DRIVERAMPUPDISTANCE;
+      }
+      FirstCallFlag = false;
+      printf("Direction: %i\n");
    }
   
 
@@ -570,104 +554,13 @@ if(fabs(lDistance) < fabs(distance)){
          return NOTDONEYET;
     }
 }
-    //else if(fabs(lDistance) >= fabs(distance))
-    else{
+  printf("DistanceDrive finished.\n");
+  printf("\tLeft Distance: %f\n\tTarget Distance: %f\n",lDistance, distance);
+  printf("Drivetrain difference: %f\n", difference);
   drive.TankDrive(0,0,false);
   FirstCallFlag = true;
-  std::cout << "It thinks its done normally" << std::endl;
   return DONE;
-  
-  }
-  // 	 static bool FirstCallFlag = true; // FirstCallFlag should always be set to true when returning DONE
-	//  static float autoStartSpeed;
-  //  static float direction;
-	//  static double lastDistance, speedUpDistance, slowDownDistance;
-  //  static int sameCounter;
-  //  static bool brakingFlag;
-  //  static units::time::second_t brakeStartTime; 
-
-	//  float newSpeed;
-	//  double curDistance;
-
-  // if (FirstCallFlag) {
-  //   // Setup distance drive on first call
-  //   // Set initial values for static variables
-  //   brakingFlag = false;
-  //   FirstCallFlag = false;
-  //   if (speed < 0) {
-  //     direction = -1;
-  //   } else {
-  //     direction = 1;
-  //   }
-  //   autoStartSpeed = direction * AUTOSTARTSPEED;
-  //   if (distance < (DRIVERAMPUPDISTANCE * 3)) {
-	//     speedUpDistance = distance / 3;
-	//     slowDownDistance = speedUpDistance;
-  //   } else {
-	//     speedUpDistance = DRIVERAMPUPDISTANCE;
-  //    	slowDownDistance = distance - DRIVERAMPUPDISTANCE;
-  //   }
-	//   
-  // 	lastDistance = 0;
-  //   sameCounter = 0;
-  //   lDriveEncoder.SetPosition(0);
-  // }
-
- 	// if (brakingFlag) {
-  //    // Braking flag gets set once we reach target distance if the brake parameter
-  //    // was specified. Drive in reverse direction at low speed for short duration.
-  //   if ((AutoTimer.Get() - brakeStartTime) < .2_s) {
-  //   	drive.TankDrive(0.2 * direction *FORWARD, 0.2 * direction * FORWARD);
-  //     return NOTDONEYET;
-  //   } else {
-  //     drive.TankDrive(0, 0);
-  //     brakingFlag = false;
-  //     FirstCallFlag = true;
-  //     return DONE;
-  //   }
-	// }
-  
-	// curDistance = abs(lDistance);
-
-	// if (curDistance == lastDistance) {
-	// 	if (sameCounter++ == 50) {
-	// 			return ERROR;
-	// 	}
-	// } else {
-	// 	sameCounter = 0;
-	// 	lastDistance = curDistance;
-	// }
-
-	// if (curDistance < speedUpDistance) {
-	// 	newSpeed = autoStartSpeed + ((speed - autoStartSpeed) * curDistance)/DRIVERAMPUPDISTANCE;
-	// } else if ((curDistance > slowDownDistance) && (brake == true)) {
-	// 	newSpeed = speed * (distance-curDistance)/DRIVERAMPUPDISTANCE;
-	// } else {
-	// 	newSpeed = speed;
-	// }
-
-	// drive.CurvatureDrive(newSpeed * (AUTOFORWARD), 0, false);
-	// curDistance = abs(lDistance);
-  // if (curDistance < distance) {
-  //   return NOTDONEYET;
-  // } else {
-  //   if (brake) {
-  //     brakingFlag = true;
-  //     brakeStartTime = AutoTimer.Get();
-  //     return NOTDONEYET;
-  //   } else {
-  //     FirstCallFlag = true;
-  //     drive.TankDrive(0, 0);
-  //     return DONE;
-  //   }
-  // }
-  
-  // should never get here
-  drive.TankDrive(0, 0);
-  FirstCallFlag = true;
-  std::cout << "The end one went off" << std::endl;
-  return DONE;
-  }
+}
 
 #ifndef RUNNING_FRC_TESTS
 int main() {
