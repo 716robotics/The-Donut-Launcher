@@ -11,59 +11,403 @@
 #include <frc/smartdashboard/SmartDashboard.h>
 
 void Robot::RobotInit() {
-  //m_chooser.SetDefaultOption();
- // m_chooser.AddOption();
+  // Auto Types
+  m_chooser.SetDefaultOption(kAutoDoNothing,kAutoDoNothing);
+  m_chooser.AddOption(kAuto1dn,kAuto1dn);
+  m_chooser.AddOption(kAuto2dns,kAuto2dns);
+  m_chooser.AddOption(kAuto2dna,kAuto2dna);
+  m_chooser.AddOption(kAuto3dns,kAuto3dns);
   frc::SmartDashboard::PutData("Autos", & m_chooser);
-  compressor.EnableDigital();
-  lCim.Follow(lNeo);
-  rCim.Follow(rNeo);
+  shooterEncoder.SetDistancePerPulse(0.01752);//should give speed in rpm
+  lDriveEncoder.SetMeasurementPeriod(ROBOTDISTANCEPERPULSE);
+	rDriveEncoder.SetMeasurementPeriod(ROBOTDISTANCEPERPULSE);
+
+  //Cim following
+    lCim.Follow(lNeo, true);
+    rCim.Follow(rNeo, true);
 }
 
 void Robot::RobotPeriodic() {
+  frc::SmartDashboard::PutNumber("Direction var", driveDirection);
+  frc::SmartDashboard::PutNumber("Left Drive Encoder", lDistance);
+  frc::SmartDashboard::PutNumber("Right Drive Encoder", rDistance);
+  frc::SmartDashboard::PutBoolean("Note Checker", noteCheck.Get());
+  frc::SmartDashboard::PutNumber("Shot Encoder", shooterEncoder.GetDistance());
+  frc::SmartDashboard::PutNumber("Shooter Speed", shooterEncoder.GetRate());
+  frc::SmartDashboard::PutNumber("Gyro Yaw", gyro.GetYaw());
+  frc::SmartDashboard::PutNumber("Gyro Pitch", gyro.GetPitch());
+  frc::SmartDashboard::PutNumber("Gyro Roll", gyro.GetRoll());
+  frc::SmartDashboard::PutNumber("tShot Projected Speed",tShotSpeed);
+  frc::SmartDashboard::PutNumber("bShot Projected Speed",bShotSpeed);
+  frc::SmartDashboard::PutNumber("D-Pad Value", gamepad.GetPOV());
+  frc::SmartDashboard::PutNumber("Auto Timer", (double)AutoTimer.Get());
+  lDistance = lDriveEncoder.GetPosition() * 1.945;
+  rDistance = rDriveEncoder.GetPosition() * 1.945;
 }
 
 void Robot::AutonomousInit() {
   m_autoSelected = m_chooser.GetSelected();
-  // m_autoSelected = SmartDashboard::GetString("Auto Selector",
-  //     kAutoNameDefault);
   std::cout << "Auto selected: " << m_autoSelected << std::endl;
-  lDriveEncoder.SetPosition(0);
-  rDriveEncoder.SetPosition(0);
-  //int AutoStage = 0;
+  if(m_autoSelected == kAuto1dn){
+    autoType = 1;
+  }
+  else if(m_autoSelected == kAuto2dns){
+    autoType = 2;
+  }
+  else if(m_autoSelected == kAuto2dna){
+    autoType = 3;
+  }
+  else if(m_autoSelected == kAuto3dns){
+    autoType = 4;
+  }
+  else{
+    autoType = 0;
+  }
+
   AutoTimer.Start();
 }
 
 void Robot::AutonomousPeriodic() {
+  switch (autoType) {
 
+    //Auto Do Nothing
+    case 0:
+    lNeo.Set(0);
+    rNeo.Set(0);
+    pickup.Set(0);
+    transporter1.Set(0);
+    transporter2.Set(0);
+    topShooter.Set(0);
+    bottomShooter.Set(0);
+    bar4.Set(bar4.kOff);
+    climber.Set(climber.kOff);
+    break;
+
+    //Auto 1 Donut
+    case 1:
+    switch(autoStage){
+      //Turn on Shooters
+      case 0:
+      if(shooterEncoder.GetRate() <= -600){
+        autoStage = 1;
+      }
+        topShooter.Set(-tShotSpeed);
+        bottomShooter.Set(bShotSpeed);
+      break;
+      //Fire + Turn off
+      case 1:
+      if(!noteCheck.Get()){
+        topShooter.Set(0);
+        bottomShooter.Set(0);
+        transporter2.Set(0);
+        autoStage = 2;
+      }
+      else{
+         transporter2.Set(.3);
+      }
+      break;
+      //Mobility
+      case 2:
+      if(DistanceDrive(-.2,30,true) == DONE){
+        drive.TankDrive(0,0,false);
+        autoStage = 3;
+        sdfr = false;
+      }
+      else{
+        DistanceDrive(-.2,30,true);
+      }
+      break;
+      //Finish
+      case 3:
+      autoType = 0;
+      break;
+    }
+    break;
+
+    //Auto 2 Donut (Straight)
+    case 2:
+    switch (autoStage){
+      //Turn on Shooters
+      case 0:
+      if(shooterEncoder.GetRate() <= -600){
+        autoStage = 1;
+      }
+        topShooter.Set(-tShotSpeed);
+        bottomShooter.Set(bShotSpeed);
+      break;
+      //Fire + Turn off
+      case 1:
+      if(!noteCheck.Get()){
+        topShooter.Set(0);
+        bottomShooter.Set(0);
+        transporter2.Set(0);
+        autoStage = 2;
+        lDriveEncoder.SetPosition(0);
+        rDriveEncoder.SetPosition(0);
+        AutoTimer.Reset();
+      }
+      else{
+         transporter2.Set(.3);
+      }
+      break;
+
+      //Pickup Down
+      case 2:
+      bar4.Set(bar4.kForward);
+      if((double)AutoTimer.Get() >= 1){
+      autoStage = 3;
+      }
+      break;
+      case 3:
+      
+      if(DistanceDrive(-.2,30,true) == DONE){
+        drive.TankDrive(0,0,true);
+        if(noteCheck.Get()){
+        pickup.Set(0);
+        transporter1.Set(0);
+        transporter2.Set(0);
+        bar4.Set(bar4.kReverse);
+        sdfr = false;
+        autoStage = 5;
+        AutoTimer.Reset();
+        }
+      }
+      else{
+      if(lDistance <= -10){
+        pickup.Set(.7);
+        transporter1.Set(.5);
+        transporter2.Set(.3);
+      }
+      }
+      break;
+      
+      //Drive Back
+      case 5:
+      if((double)AutoTimer.Get() >= 3){
+      if(DistanceDrive(-.2, 30, true) == DONE){
+      drive.TankDrive(0,0,true);
+      autoStage = 6;
+      sdfr = false;
+      }
+      }
+      break;
+
+      //Shoot
+      case 6:
+      if(shooterEncoder.GetRate() <= -600){
+        autoStage = 7;
+      }
+        topShooter.Set(-tShotSpeed);
+        bottomShooter.Set(bShotSpeed);
+      break;
+      case 7:
+      if(!noteCheck.Get()){
+        topShooter.Set(0);
+        bottomShooter.Set(0);
+        transporter2.Set(0);
+        autoStage = 8;
+      }
+      else{
+         transporter2.Set(.3);
+      }
+
+      break;
+
+      //Finish
+      case 8:
+      autoType = 0;
+      break;
+
+      break;
+    } 
+
+    break;
+
+    //Auto 2 Donut (Angle)
+    case 3:
+    switch(autoStage){
+      //Turn on Shooters
+      case 0:
+      if(shooterEncoder.GetRate() <= -600){
+        autoStage = 1;
+      }
+        topShooter.Set(-tShotSpeed);
+        bottomShooter.Set(bShotSpeed);
+      break;
+      autoStage = 1;
+
+    break;
+    case 1:
+    if(DistanceDrive(-.2, 20, true) == DONE){
+      drive.TankDrive(0,0,true);
+      autoStage = 2;
+      sdfr = false;
+      }
+     break;
+     case 2:
+     if(TurnToAngle(-45) == DONE){
+      drive.TankDrive(0,0,true);
+      autoStage = 3;
+      tdr = false;
+     }
+     break;
+     case 3:
+     if(DistanceDrive(-.2, 20, true) == DONE){
+      drive.TankDrive(0,0,true);
+      autoStage = 4;
+      sdfr = false;
+      AutoTimer.Reset();
+     }
+     break;
+     case 4:
+      bar4.Set(bar4.kForward);
+      if((double)AutoTimer.Get() >= 1){
+      autoStage = 5;
+      }
+     break;
+     case 5:
+     if(DistanceDrive(-.2,30,true) == DONE){
+        drive.TankDrive(0,0,true);
+        if(noteCheck.Get()){
+        pickup.Set(0);
+        transporter1.Set(0);
+        transporter2.Set(0);
+        bar4.Set(bar4.kReverse);
+        sdfr = false;
+        autoStage = 6;
+        }
+      }
+      else{
+      if(lDistance <= -10){
+        pickup.Set(.7);
+        transporter1.Set(.5);
+        transporter2.Set(.3);
+      }
+      }
+
+     break;
+    }
+
+    //Auto 3 Donut (Straight)
+    case 4:
+    break;
+
+  
+
+ }
 }
 
 void Robot::TeleopInit() {
-  lDriveEncoder.SetMeasurementPeriod(ROBOTDISTANCEPERPULSE);
-	rDriveEncoder.SetMeasurementPeriod(ROBOTDISTANCEPERPULSE);
   driveDirection = 0;
 }
 
 void Robot::TeleopPeriodic() {
   //reverse drive function
-  if(leftDriveStick.GetRawButton(3)){
+  if(leftDriveStick.GetRawButton(2)){
     driveDirection = 0;
   }
-  else if(rightDriveStick.GetRawButton(2)){
+  else if(rightDriveStick.GetRawButton(3)){
     driveDirection = 1;
   }
   
-  if(driveDirection == 1){
-    drive.TankDrive(rightDriveStick.GetY() * - 1,leftDriveStick.GetY() * -1, false);
+  else if(driveDirection == 1){
+    drive.TankDrive(leftDriveStick.GetY(),rightDriveStick.GetY() * -1, false);
+  }
+  else if(driveDirection == 0){
+    drive.TankDrive(rightDriveStick.GetY() * - 1,leftDriveStick.GetY(), false);
+  }
+  
+
+  // Waiting For Sensor
+  if(gamepad.GetXButton()){
+    moveUp = true;
+  }
+
+  // Pickup Up (Override)
+  if(gamepad.GetBButton()){
+    bar4.Set(bar4.kReverse);
+    moveUp = false;
+  }
+  // Pickup Up (Sensor)
+  else if(moveUp && noteCheck.Get()){
+      bar4.Set(bar4.kReverse);
+      moveUp = false;
+  }
+  // Pickup Down
+  else if(gamepad.GetAButton()){
+    bar4.Set(bar4.kForward);
+    moveUp = false;
   }
   else{
-    drive.TankDrive(leftDriveStick.GetY(), rightDriveStick.GetY(), false);
+    bar4.Set(bar4.kOff);
   }
 
+  // Pickup Wheels + Transporter Wheels
+  if(gamepad.GetRightTriggerAxis() >= .7){
+    transporter1.Set(1);
+    transporter2.Set(1);
+  } 
+  else if(gamepad.GetLeftTriggerAxis() >= .7 && noteCheck.Get() == false){
+    pickup.Set(1);
+    transporter1.Set(.6);
+    transporter2.Set(.3);
+  }
+  else{
+    pickup.Set(0);
+    transporter1.Set(0);
+    transporter2.Set(0);
+  }
 
+  // Shooter Off/On
+  if(gamepad.GetLeftBumper()){
+    topShooter.Set(0);
+    bottomShooter.Set(0);
+  }
+  else if(gamepad.GetRightBumper()){
+    topShooter.Set(-tShotSpeed);
+    bottomShooter.Set(bShotSpeed);
+  }
+
+  // Shooter Speed
+  if(gamepad.GetPOV() == 0){
+    tShotSpeed = 1;
+    bShotSpeed = 1;
+  }
+  else if(gamepad.GetPOV() == 180){
+    tShotSpeed = .0;
+    bShotSpeed = .5;
+  }
+  else if(gamepad.GetPOV() == 90){
+    tShotSpeed = .9;
+    bShotSpeed = .4;
+  }
+  else if(gamepad.GetPOV() == 270){
+    tShotSpeed = .875;
+    bShotSpeed = .375;
+  }
+  
+
+  
+
+  // Climber
+  if(rightDriveStick.GetTrigger()){
+    climber.Set(climber.kReverse);
+  }
+  else if(leftDriveStick.GetTrigger()){
+    climber.Set(climber.kForward);
+  }
+  else{
+    climber.Set(climber.kOff);
+  }
 
 }
 
-void Robot::DisabledInit() {}
+void Robot::DisabledInit() {
+//   if(lclimber.GetFwdChannel() || rclimber.GetFwdChannel()){
+//     lclimber.Set(lclimber.kReverse);
+//     rclimber.Set(rclimber.kReverse);
+//   }
+}
 
 void Robot::DisabledPeriodic() {}
 
@@ -78,35 +422,56 @@ void Robot::StraightDrive(){
     sdfr = true;
   }
   double throttle = (-1 *leftDriveStick.GetY());
-  double difference = (-1 * rDriveEncoder.GetPosition()) - (lDriveEncoder.GetPosition());
+  double difference = (-1 * rDistance) - (lDistance);
   drive.TankDrive((throttle - (difference * 0.1)), (throttle + (difference * 0.1)), false);
   }
 
 //Should keep the robot from moving, never tested it
 void Robot::HoldTheLine(){
-  std::cout << "Love isn't always on time" << std::endl; // No I am not ashamed of this TOTO reference
     if (!sdfr){
     lDriveEncoder.SetPosition(0);
     rDriveEncoder.SetPosition(0);
     sdfr = true;
   }
-  drive.TankDrive((0.25 * lDriveEncoder.GetPosition()),(-0.25 * rDriveEncoder.GetPosition()), false);
+  drive.TankDrive((0.25 * lDistance),(-0.25 * rDistance), false);
+}
+int Robot::TurnToAngle(double angle){
+  if(!tdr){
+  gyro.ZeroYaw();
+  tdr = true;
+  }
+  if(angle < 0){
+    if(gyro.GetYaw() >= angle){
+      drive.TankDrive(.3,.3,false);
+      return NOTDONEYET;
+    }
+    else{
+      drive.TankDrive(0,0,false);
+      return DONE;
+    }
+
+  }
+  else{
+    if(gyro.GetYaw() <= angle){
+      drive.TankDrive(-.3,-.3,false);
+    }
+    else{
+      drive.TankDrive(0,0,false);
+      return DONE;
+    }
+
+  }
+  return DONE;
 }
 
 void Robot::Abort(){
   pickup.StopMotor();
-  transporter.StopMotor();
+  transporter1.StopMotor();
+  transporter2.StopMotor();
   topShooter.StopMotor();
   bottomShooter.StopMotor();
-  auxSpeedController5.StopMotor();
-  auxSpeedController6.StopMotor();
-  pneu1.Set(frc::DoubleSolenoid::Value::kReverse);
-  pneu2.Set(frc::DoubleSolenoid::Value::kReverse);
-  pneu3.Set(frc::DoubleSolenoid::Value::kReverse);
-  pneu4.Set(frc::DoubleSolenoid::Value::kReverse);
-  auxSpedCtrlr4DefState = 0;
-  auxSpedCtrlr5DefState = 0;
-  auxSpedCtrlr6DefState = 0;
+  climber.Set(frc::DoubleSolenoid::Value::kReverse);
+  bar4.Set(frc::DoubleSolenoid::Value::kReverse);
   Pnm1DefState = frc::DoubleSolenoid::Value::kReverse;
   Pnm2DefState = frc::DoubleSolenoid::Value::kReverse;
   Pnm3DefState = frc::DoubleSolenoid::Value::kReverse;
@@ -125,95 +490,184 @@ void Robot::Lock(){
 
 int Robot::DistanceDrive (float speed, float distance, bool brake)
 {
-	static bool FirstCallFlag = true; // FirstCallFlag should always be set to true when returning DONE
-	static float autoStartSpeed;
-  static float direction;
-	static double lastDistance, speedUpDistance, slowDownDistance;
-  static int sameCounter;
-  static bool brakingFlag;
-  static double brakeStartTime; 
+  FirstCallFlag = true;
+   static float autoStartSpeed;
+   static double speedUpDistance, slowDownDistance;
+  double difference = (-1 * rDistance) - (lDistance);
+   if (FirstCallFlag == true) {
 
-	float newSpeed;
-	double curDistance;
+  //   // Setup distance drive on first call
+  //   // Set initial values for static variables
+  //   brakingFlag = false;
+  //   FirstCallFlag = false;
+  //   if (speed < 0) {
+  //     direction = -1;
+  //   } else {
+  //     direction = 1;
+  //   }
+  //   autoStartSpeed = direction * AUTOSTARTSPEED;
+  //   if (distance < (DRIVERAMPUPDISTANCE * 3)) {
+	//     speedUpDistance = distance / 3;
+	//     slowDownDistance = speedUpDistance;
+  //   } else {
+	//     speedUpDistance = DRIVERAMPUPDISTANCE;
+  //    	slowDownDistance = distance - DRIVERAMPUPDISTANCE;
+  //   }
+	//   frc::SmartDashboard::PutNumber(  "DistanceDrive Distance", distance);
+  // 	lastDistance = 0;
+  //   sameCounter = 0;
+  //   lDriveEncoder.SetPosition(0);
+  // }
+  if(!sdfr){
+    lDriveEncoder.SetPosition(0);
+    rDriveEncoder.SetPosition(0);
+    lDistance = 0;
+    rDistance = 0;
+    sdfr = true;
+  }
+  bool direction;
+  //Changing Direction based off of distance float
+  if(speed < 0){
+    direction = -1;
+  }  
+  else{
+    direction = 1;
+  }
+  
+  //adding direction to start speed
+ autoStartSpeed = AUTOSTARTSPEED * direction;
 
-  if (FirstCallFlag) {
-    // Setup distance drive on first call
-    // Set initial values for static variables
-    brakingFlag = false;
-    FirstCallFlag = false;
-    if (speed < 0) {
-      direction = -1;
-    } else {
-      direction = 1;
-    }
-    autoStartSpeed = direction * AUTOSTARTSPEED;
-    if (distance < (DRIVERAMPUPDISTANCE * 2)) {
-	    speedUpDistance = distance / 2;
+//setting the ramp up and down parameters
+  if (distance < (DRIVERAMPUPDISTANCE * 3)) {
+	    speedUpDistance = distance / 3;
 	    slowDownDistance = speedUpDistance;
     } else {
 	    speedUpDistance = DRIVERAMPUPDISTANCE;
      	slowDownDistance = distance - DRIVERAMPUPDISTANCE;
     }
-	  frc::SmartDashboard::PutNumber(  "DistanceDrive Distance", distance);
-  	lastDistance = 0;
-    sameCounter = 0;
-    lDriveEncoder.SetPosition(0);
-  }
-
- 	if (brakingFlag) {
-     // Braking flag gets set once we reach targe distance if the brake parameter
-     // was specified. Drive in reverse direction at low speed for short duration.
-    if ((AutoTimer.Get() - brakeStartTime) < .2) {
-    	drive.TankDrive(-0.2 * direction *FORWARD, -0.2 * direction * FORWARD);
-      return NOTDONEYET;
-    } else {
-      drive.TankDrive(0, 0);
-      brakingFlag = false;
-      FirstCallFlag = true;
-      return DONE;
-    }
-	}
+    FirstCallFlag = false;
+   }
   
-	curDistance = abs(lDriveEncoder.GetPosition());
 
-	if (curDistance == lastDistance) {
-		if (sameCounter++ == 50) {
-				return ERROR;
-		}
-	} else {
-		sameCounter = 0;
-		lastDistance = curDistance;
-	}
+  
+  lDistance = lDriveEncoder.GetPosition() * 1.945;
+  rDistance = rDriveEncoder.GetPosition() * 1.945;
+if(fabs(lDistance) < fabs(distance)){
 
-	if (curDistance < speedUpDistance) {
-		newSpeed = autoStartSpeed + ((speed - autoStartSpeed) * curDistance)/DRIVERAMPUPDISTANCE;
-	} else if ((curDistance > slowDownDistance) && (brake == true)) {
-		newSpeed = speed * (distance-curDistance)/DRIVERAMPUPDISTANCE;
-	} else {
-		newSpeed = speed;
-	}
-
-	drive.CurvatureDrive(newSpeed * (AUTOFORWARD), 0, false);
-	curDistance = abs(lDriveEncoder.GetPosition());
-  if (curDistance < distance) {
-    return NOTDONEYET;
-  } else {
-    if (brake) {
-      brakingFlag = true;
-      brakeStartTime = (double)AutoTimer.Get();
-      return NOTDONEYET;
-    } else {
-      FirstCallFlag = true;
-      drive.TankDrive(0, 0);
-      return DONE;
+    if(lDistance < speedUpDistance){
+       drive.TankDrive(-1 * (autoStartSpeed - (difference * 0.1)), (autoStartSpeed + (difference * 0.1)), false);
+          std::cout << "start driving" << std::endl;
+          return NOTDONEYET;
+     }
+     else if(lDistance > slowDownDistance){
+       drive.TankDrive(-1 * (speed - (difference * 0.1)), (speed + (difference * 0.1)), false);
+          std::cout << "end driving" << std::endl;
+          return NOTDONEYET;
     }
+    else{
+      drive.TankDrive(-1 * (autoStartSpeed - (difference * 0.1)), (autoStartSpeed + (difference * 0.1)), false);
+         std::cout << "normally driving" << std::endl;
+         return NOTDONEYET;
+    }
+}
+    //else if(fabs(lDistance) >= fabs(distance))
+    else{
+  drive.TankDrive(0,0,false);
+  FirstCallFlag = true;
+  std::cout << "It thinks its done normally" << std::endl;
+  return DONE;
+  
   }
+  // 	 static bool FirstCallFlag = true; // FirstCallFlag should always be set to true when returning DONE
+	//  static float autoStartSpeed;
+  //  static float direction;
+	//  static double lastDistance, speedUpDistance, slowDownDistance;
+  //  static int sameCounter;
+  //  static bool brakingFlag;
+  //  static units::time::second_t brakeStartTime; 
+
+	//  float newSpeed;
+	//  double curDistance;
+
+  // if (FirstCallFlag) {
+  //   // Setup distance drive on first call
+  //   // Set initial values for static variables
+  //   brakingFlag = false;
+  //   FirstCallFlag = false;
+  //   if (speed < 0) {
+  //     direction = -1;
+  //   } else {
+  //     direction = 1;
+  //   }
+  //   autoStartSpeed = direction * AUTOSTARTSPEED;
+  //   if (distance < (DRIVERAMPUPDISTANCE * 3)) {
+	//     speedUpDistance = distance / 3;
+	//     slowDownDistance = speedUpDistance;
+  //   } else {
+	//     speedUpDistance = DRIVERAMPUPDISTANCE;
+  //    	slowDownDistance = distance - DRIVERAMPUPDISTANCE;
+  //   }
+	//   
+  // 	lastDistance = 0;
+  //   sameCounter = 0;
+  //   lDriveEncoder.SetPosition(0);
+  // }
+
+ 	// if (brakingFlag) {
+  //    // Braking flag gets set once we reach target distance if the brake parameter
+  //    // was specified. Drive in reverse direction at low speed for short duration.
+  //   if ((AutoTimer.Get() - brakeStartTime) < .2_s) {
+  //   	drive.TankDrive(0.2 * direction *FORWARD, 0.2 * direction * FORWARD);
+  //     return NOTDONEYET;
+  //   } else {
+  //     drive.TankDrive(0, 0);
+  //     brakingFlag = false;
+  //     FirstCallFlag = true;
+  //     return DONE;
+  //   }
+	// }
+  
+	// curDistance = abs(lDistance);
+
+	// if (curDistance == lastDistance) {
+	// 	if (sameCounter++ == 50) {
+	// 			return ERROR;
+	// 	}
+	// } else {
+	// 	sameCounter = 0;
+	// 	lastDistance = curDistance;
+	// }
+
+	// if (curDistance < speedUpDistance) {
+	// 	newSpeed = autoStartSpeed + ((speed - autoStartSpeed) * curDistance)/DRIVERAMPUPDISTANCE;
+	// } else if ((curDistance > slowDownDistance) && (brake == true)) {
+	// 	newSpeed = speed * (distance-curDistance)/DRIVERAMPUPDISTANCE;
+	// } else {
+	// 	newSpeed = speed;
+	// }
+
+	// drive.CurvatureDrive(newSpeed * (AUTOFORWARD), 0, false);
+	// curDistance = abs(lDistance);
+  // if (curDistance < distance) {
+  //   return NOTDONEYET;
+  // } else {
+  //   if (brake) {
+  //     brakingFlag = true;
+  //     brakeStartTime = AutoTimer.Get();
+  //     return NOTDONEYET;
+  //   } else {
+  //     FirstCallFlag = true;
+  //     drive.TankDrive(0, 0);
+  //     return DONE;
+  //   }
+  // }
   
   // should never get here
   drive.TankDrive(0, 0);
   FirstCallFlag = true;
+  std::cout << "The end one went off" << std::endl;
   return DONE;
-}
+  }
 
 #ifndef RUNNING_FRC_TESTS
 int main() {
