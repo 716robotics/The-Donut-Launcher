@@ -53,8 +53,9 @@ class Robot : public frc::TimedRobot {
   //Sensors
   rev::SparkRelativeEncoder lDriveEncoder = lNeo.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 4096);
   rev::SparkRelativeEncoder rDriveEncoder = rNeo.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 4096);
-	frc::Encoder shooterEncoder{0,1,false,frc::Encoder::k4X};
-	//frc::Encoder rightDriveEncoder{2,3,false,frc::Encoder::k4X};  //Global Vars
+	//frc::Encoder leftDriveEncoder{0,1,false,frc::Encoder::k4X};
+	//frc::Encoder rightDriveEncoder{2,3,false,frc::Encoder::k4X};
+  //Global Vars
   frc::Timer AutoTimer;
   bool sdfr = false;
   bool autoactive = true;
@@ -86,7 +87,7 @@ class Robot : public frc::TimedRobot {
 
   //Vars
 int autoStage;
-int driveDirection = 0;
+int driveDirection;
 
 //Auto Chooser
  private:
