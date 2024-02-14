@@ -25,12 +25,17 @@
 #include <frc/Encoder.h>
 #include <frc/Can.h>
 #include <rev/CANSparkMax.h> 
+#include <frc/DigitalInput.h>
+#include <AHRS.h>
+#include <frc/DriverStation.h>
+#include <frc/SPI.h>
+#include "frc/interfaces/Gyro.h"
 
 
 class Robot : public frc::TimedRobot {
   //Input Devices:
-  frc::Joystick leftDriveStick{0};
-  frc::Joystick rightDriveStick{1};
+  frc::Joystick leftDriveStick{1};
+  frc::Joystick rightDriveStick{0};
   frc::XboxController gamepad{2};
   //Drive motors
   rev::CANSparkMax rNeo{1, rev::CANSparkMax::MotorType::kBrushless};
@@ -38,27 +43,25 @@ class Robot : public frc::TimedRobot {
   rev::CANSparkMax rCim{2, rev::CANSparkMax::MotorType::kBrushed};
   rev::CANSparkMax lCim{3, rev::CANSparkMax::MotorType::kBrushed};
   frc::DifferentialDrive drive{lNeo, rNeo};
-  //Effectors
-  frc::Compressor compressor;
+  //Effectors	
   frc::VictorSP pickup{0};
-  frc::VictorSP transporter{1};
-  frc::VictorSP topShooter{2};
-  frc::VictorSP bottomShooter{3};
-  frc::VictorSP auxSpeedController5{4};
-  frc::VictorSP auxSpeedController6{5};
-  frc::DoubleSolenoid pneu1{frc::PneumaticsModuleType::CTREPCM, 0, 1,};
-  frc::DoubleSolenoid pneu2{frc::PneumaticsModuleType::CTREPCM, 2, 3,};
-  frc::DoubleSolenoid pneu3{frc::PneumaticsModuleType::CTREPCM, 4, 5,};
-  frc::DoubleSolenoid pneu4{frc::PneumaticsModuleType::CTREPCM, 6, 7,};
+  frc::VictorSP topShooter{1};
+  frc::VictorSP bottomShooter{2};
+  frc::VictorSP transporter1{4};
+  frc::VictorSP transporter2{3};
+  frc::DoubleSolenoid climber{frc::PneumaticsModuleType::CTREPCM, 2, 3,};
+  frc::DoubleSolenoid bar4{frc::PneumaticsModuleType::CTREPCM, 0, 1,};
   //Sensors
-  rev::SparkRelativeEncoder lDriveEncoder = lNeo.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 4096);
-  rev::SparkRelativeEncoder rDriveEncoder = rNeo.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 4096);
-	//frc::Encoder leftDriveEncoder{0,1,false,frc::Encoder::k4X};
-	//frc::Encoder rightDriveEncoder{2,3,false,frc::Encoder::k4X};
+  rev::SparkRelativeEncoder lDriveEncoder = lNeo.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 42);
+  rev::SparkRelativeEncoder rDriveEncoder = rNeo.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor, 42);
+	frc::Encoder shooterEncoder{1,2,false,frc::Encoder::k2X};
+  frc::DigitalInput noteCheck{0}; 
   //Global Vars
   frc::Timer AutoTimer;
   bool sdfr = false;
   bool autoactive = true;
+  bool tdr = false;
+  bool FirstCallFlag = true;
   //Default States
   float auxSpedCtrlr4DefState = 0;
   float auxSpedCtrlr5DefState = 0;
@@ -84,15 +87,28 @@ class Robot : public frc::TimedRobot {
   void Abort();
   void Lock();
   int DistanceDrive(float,float,bool);
+  int TurnToAngle(double);
 
-  //Vars
-int autoStage;
-int driveDirection;
-
+//Vars
+  int autoStage;
+  int driveDirection = 0;
+  bool angleStart;
+  double tShotSpeed = 1;
+  double bShotSpeed = 1;
+  bool moveUp = false;
+  int autoType;
+  double lDistance;
+  double rDistance;
 //Auto Chooser
  private:
   frc::SendableChooser<std::string> m_chooser;
-  const std::string kAutoDriveForward = "Drive Forward";
+  const std::string kAuto1dn = "One Donut (Angle)";
   const std::string kAutoDoNothing = "Do Nothing";
+  const std::string kAuto2dns = "Two Donuts (Straight)";
+  const std::string kAuto2dna = "Two Donuts (Angle)";
+  const std::string kAuto3dns = "Three Donuts (Straight)";
   std::string m_autoSelected;
+
 };
+AHRS gyro(frc::SPI::Port::kMXP);
+
